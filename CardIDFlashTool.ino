@@ -8,6 +8,8 @@
 #include <SPI.h>
 #include <MFRC522.h>
 #include <Tone.h>
+//#include <SD.h>
+//include<stdlib.h>
 
 #define SS_PIN 10    //Arduino Uno
 //#define SS_PIN 7    //Arduino MEga
@@ -17,6 +19,8 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);        // Create MFRC522 instance.
 int cardIsonPosition= 1;
 String choferID = "";
 String unidadID = "";
+String SWver = "v0.5";
+String diagCmd ="";
 byte buffer[34];  
 byte block;
 byte status, len;
@@ -25,6 +29,7 @@ char optionFirstChar[2];
 byte blockAddr;
 byte size = sizeof(buffer);
 int i;
+boolean stringComplete;
 Tone notePlayer[1];
 MFRC522::MIFARE_Key key;
 
@@ -34,7 +39,7 @@ void setup() {
         mfrc522.PCD_Init();        // Init MFRC522 card
         Serial.println("          ##### PROGRAMADOR DE ID'S PARA TARJETAS DE CHOFER Y UNIDADES #####            ");
 
-  notePlayer[0].begin(6);
+  /*notePlayer[0].begin(6);
   notePlayer[0].play(NOTE_D4);
   delay(200);
   notePlayer[0].play(NOTE_B4);
@@ -47,14 +52,47 @@ void setup() {
   delay(100);
   notePlayer[0].play(NOTE_B2);
   delay(180);
-  notePlayer[0].stop();
+  notePlayer[0].stop();*/
 
 
 }
 
 void loop() {
+
+  serialRequest();
+
+  if (stringComplete) {
+    if(diagCmd =="swver\n")
+    {
+     Serial.println(SWver);
       
-        if(cardIsonPosition)
+    }
+    /*if(diagCmd == "ls\n")
+    {
+       root = SD.open("/");
+       printDirectory(root, 0);
+    }*/
+
+    if(diagCmd == "open log\n")
+    {
+     // readFile("ODOLOG.TXT");
+    }
+
+    if(diagCmd == "rm log\n")
+    {
+//      SD.remove("ODOLOG.TXT");
+      Serial.println("ODOLOG.TXT removed");
+    }
+   // Serial.println(diagCmd);
+    // clear the string:
+    diagCmd = "";
+    stringComplete = false;
+  }
+
+
+  
+      
+     /*   if(cardIsonPosition)
         {
           Serial.println("Coloca la tarjeta a programar cerca del lector :) ");
         }
@@ -322,7 +360,7 @@ void loop() {
         Serial.println(" ");
         mfrc522.PICC_HaltA(); // Halt PICC
         mfrc522.PCD_StopCrypto1();  // Stop encryption on PCD
-       
+       */
 }
 
 
@@ -473,6 +511,39 @@ bool eraseMemory()
                         Serial.println("Unidad Borrado");
                         return 1;}
         
+}
+
+
+void serialRequest()
+{
+ // Serial.println("H");
+  while (Serial.available()) {
+    // get the new byte:
+    char inChar = (char)Serial.read();
+    // add it to the inputString:
+    diagCmd += inChar;
+    // if the incoming character is a newline, set a flag
+    // so the main loop can do something about it:
+    if (inChar == '\n') {
+      stringComplete = true;
+    }
+  }
+
+}
+
+boolean r(int dir, char str[])
+{
+
+
+
+
+}
+
+boolean w(int dir, char str[])
+{
+
+
+  
 }
 
 
