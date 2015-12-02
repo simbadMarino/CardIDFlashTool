@@ -16,15 +16,27 @@
 #define RST_PIN 9
 MFRC522 mfrc522(SS_PIN, RST_PIN);        // Create MFRC522 instance.
 
+
+    byte dataBlock[]    = {
+        0x00, 0x00, 0x00, 0x00, //  0, 0, 0, 0,
+        0x00, 0x00, 0x00, 0x00, //  0, 0, 0, 0,
+        0x00, 0x00, 0x00, 0x00, //  0, 0, 0, 0,
+        0x00, 0x00, 0x00, 0x00  //  0, 0, 0, 0
+    };
+byte sector;
+byte trailerBlock   = 7;
+int BlockNumber;
 int cardIsonPosition= 1;
-String choferID = "";
-String unidadID = "";
-String SWver = "v0.5";
+char data_to_write[16];
+//String choferID = "";
+//String unidadID = "";
+String SWver = "v2.7 28/11/15";
+String strCmd;
 String diagCmd ="";
 byte buffer[34];  
 byte block;
 byte status, len;
-String option;
+//String option;
 char optionFirstChar[2];
 byte blockAddr;
 byte size = sizeof(buffer);
@@ -34,10 +46,23 @@ Tone notePlayer[1];
 MFRC522::MIFARE_Key key;
 
 void setup() {
-        Serial.begin(9600);        // Initialize serial communications with the PC
-        SPI.begin();                // Init SPI bus
-        mfrc522.PCD_Init();        // Init MFRC522 card
-        Serial.println("          ##### PROGRAMADOR DE ID'S PARA TARJETAS DE CHOFER Y UNIDADES #####            ");
+      Serial.begin(9600); // Initialize serial communications with the PC
+    SPI.begin();        // Init SPI bus
+      //  mfrc522.PCD_Init(); // Init MFRC522 card
+
+    // Prepare the key (used both as key A and as key B)
+    // using FFFFFFFFFFFFh which is the default at chip delivery from the factory
+    for (byte i = 0; i < 6; i++) {
+        key.keyByte[i] = 0xFF;
+    }
+
+   // Serial.println("Scan a MIFARE Classic PICC to demonstrate read and write.");
+   // Serial.print("Using key (for A and B):");
+   // dump_byte_array(key.keyByte, MFRC522::MF_KEY_SIZE);
+  //  Serial.println();
+    
+   // Serial.println("BEWARE: Data will be written to the PICC, in sector #1");
+        Serial.println("          ##### RFID TAG READER/WRITER #####            ");
 
   /*notePlayer[0].begin(6);
   notePlayer[0].play(NOTE_D4);
@@ -62,456 +87,280 @@ void loop() {
   serialRequest();
 
   if (stringComplete) {
+
+    
     if(diagCmd =="swver\n")
     {
      Serial.println(SWver);
       
     }
-    /*if(diagCmd == "ls\n")
-    {
-       root = SD.open("/");
-       printDirectory(root, 0);
-    }*/
 
-    if(diagCmd == "open log\n")
+    if(diagCmd[0] == 'r' && diagCmd[1]== '(')  //We received a read Block Command
     {
-     // readFile("ODOLOG.TXT");
+      i=2;                                     //Start in Block number byte(2)
+      mfrc522.PCD_Init(); // Init MFRC522 card
+      Serial.println("Read command");          //Debug
+      while(diagCmd[i] != ')' )                 //Read Block number until ')' is detected
+      {
+        strCmd = strCmd + diagCmd[i];
+        i++;
+        
+
+        if(i > 4)
+        {
+         // Serial.println(i);
+          Serial.println("Error 501");          //Error 501 means parenthesis is not closed in function or numer exceeds the 2 digits limit
+          break;
+          //Serial.println(diagCmd);
+        }
+      }
+      
+      //Serial.println(strCmd);
+      BlockNumber = strCmd.toInt();
+
+      if(BlockNumber < 4)
+      {
+        sector = 0;
+      }
+
+      else if(BlockNumber < 8)
+      {
+        sector = 1;
+      }
+
+      else if(BlockNumber < 12)
+      {
+        sector = 2;
+      }
+
+      else if(BlockNumber < 16)
+      {
+        sector = 3;
+      }
+
+      else if(BlockNumber < 20)
+      {
+        sector = 4;
+      }
+
+      else if(BlockNumber < 24)
+      {
+        sector = 5;
+      }
+
+      else if(BlockNumber < 28)
+      {
+        sector = 6;
+      }
+
+      else if(BlockNumber < 32)
+      {
+        sector = 7;
+      }
+
+      else if(BlockNumber < 36)
+      {
+        sector = 8;
+      }
+
+      else if(BlockNumber < 40)
+      {
+        sector = 9;
+      }
+
+      else if(BlockNumber < 44)
+      {
+        sector = 10;
+      }
+
+      else if(BlockNumber < 48)
+      {
+        sector = 11;
+      }
+
+      else if(BlockNumber < 52)
+      {
+        sector = 12;
+      }
+
+      else if(BlockNumber < 56)
+      {
+        sector = 13;
+      }
+
+      else if(BlockNumber < 60)
+      {
+        sector = 14;
+      }
+
+      else if(BlockNumber < 64)
+      {
+        sector = 15;
+      }
+      Serial.print("Sector: ");
+      Serial.println(sector);
+      Serial.print("Block: ");
+      Serial.println(BlockNumber);
+    
+      r(BlockNumber);
+        strCmd = "";
+      i = 0;  //Resetting counter
+      
+      
     }
 
-    if(diagCmd == "rm log\n")
+    if(diagCmd[0] == 'w' && diagCmd[1] == '(')
     {
-//      SD.remove("ODOLOG.TXT");
-      Serial.println("ODOLOG.TXT removed");
+        mfrc522.PCD_Init(); // Init MFRC522 card
+      Serial.println("Write Command");
+      i=2;                                     //Start in Block number byte(2)
+       while(diagCmd[i] != ',' )                 //Read Block number until ')' is detected
+      {
+        strCmd = strCmd + diagCmd[i];
+        i++;
+        
+
+        if(i > 4)
+        {
+         // Serial.println(i);
+          Serial.println("Error 501");          //Error 501 means parenthesis is not closed in function or numer exceeds the 2 digits limit
+          break;
+          //Serial.println(diagCmd);
+        }
+      }
+      
+      Serial.println(strCmd);
+      BlockNumber = strCmd.toInt();
+
+  if(BlockNumber < 4)
+      {
+        sector = 0;
+      }
+
+      else if(BlockNumber < 8)
+      {
+        sector = 1;
+      }
+
+      else if(BlockNumber < 12)
+      {
+        sector = 2;
+      }
+
+      else if(BlockNumber < 16)
+      {
+        sector = 3;
+      }
+
+      else if(BlockNumber < 20)
+      {
+        sector = 4;
+      }
+
+      else if(BlockNumber < 24)
+      {
+        sector = 5;
+      }
+
+      else if(BlockNumber < 28)
+      {
+        sector = 6;
+      }
+
+      else if(BlockNumber < 32)
+      {
+        sector = 7;
+      }
+
+      else if(BlockNumber < 36)
+      {
+        sector = 8;
+      }
+
+      else if(BlockNumber < 40)
+      {
+        sector = 9;
+      }
+
+      else if(BlockNumber < 44)
+      {
+        sector = 10;
+      }
+
+      else if(BlockNumber < 48)
+      {
+        sector = 11;
+      }
+
+      else if(BlockNumber < 52)
+      {
+        sector = 12;
+      }
+
+      else if(BlockNumber < 56)
+      {
+        sector = 13;
+      }
+
+      else if(BlockNumber < 60)
+      {
+        sector = 14;
+      }
+
+      else if(BlockNumber < 64)
+      {
+        sector = 15;
+      }
+      Serial.print("Sector: ");
+      Serial.println(sector);
+      Serial.print("Block: ");
+      Serial.println(BlockNumber);
+
+      if(BlockNumber == (sector+3*(sector+1)))
+      {
+        Serial.println("Trailer Block write attemp, not allowed!!");
+      }
+      else
+      {
+        Serial.print("Byte i:");
+        Serial.println(i);
+        strCmd = "";
+        i++;
+        while(diagCmd[i] != ')' )                 //Read Block number until ')' is detected
+        {
+          strCmd = strCmd + diagCmd[i];
+          i++;
+          
+  
+          if(i > 20)
+          {
+           // Serial.println(i);
+            Serial.println("Error 501");          //Error 501 means parenthesis is not closed in function or numer exceeds the 16 bytes of data(Limit of Block is 16 bytes)
+            break;
+            //Serial.println(diagCmd);
+          }
+        }
+        Serial.print("Data to be written: ");
+        
+        strCmd.toCharArray(data_to_write,16);
+        Serial.println(data_to_write);
+        w(BlockNumber,data_to_write);
+      }
+
+       strCmd = "";
+      i = 0;  //Resetting counter
     }
-   // Serial.println(diagCmd);
-    // clear the string:
+
     diagCmd = "";
     stringComplete = false;
   }
 
+ 
 
-  
-      
-     /*   if(cardIsonPosition)
-        {
-          Serial.println("Coloca la tarjeta a programar cerca del lector :) ");
-        }
-        //mfrc522.PCD_Init();        // Init MFRC522 card
-        cardIsonPosition = 0;    //Desactiva la visualizacion de la colocacion de la tarjeta
-        
-        // Prepare key - all keys are set to FFFFFFFFFFFFh at chip delivery from the factory.
-        
-        for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF;
-        
-        // Look for new cards
-        if ( ! mfrc522.PICC_IsNewCardPresent()) {
-                return;
-        }
-
-        // Select one of the cards
-        if ( ! mfrc522.PICC_ReadCardSerial())    return;
-        
-        Serial.print("Card UID:");    //Dump UID
-        for (byte i = 0; i < mfrc522.uid.size; i++) {
-          Serial.print(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " ");
-          Serial.print(mfrc522.uid.uidByte[i], HEX);
-        } 
-        Serial.print(" PICC type: ");   // Dump PICC type
-        byte piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
-        Serial.println(mfrc522.PICC_GetTypeName(piccType));
-         
-      
-        
-        Serial.setTimeout(20000) ;     // wait until 20 seconds for input from serial
-        Serial.println("ENTER ID");
-        option = Serial.readStringUntil('\n');
-        Serial.println(option[0]);  //DEBUG line
-        
-        
-        
-        if(option[0] == 'C')
-        {
-              eraseMemory();
-              //Serial.setTimeout(20000);
-            //  Serial.println("Teclead ID de chofer para esta tarjeta, despues Enter");
-              //len=Serial.readBytesUntil('\n', (char *) buffer, 30) ; // read Chofer ID from serial
-              len = option.length();
-              option.getBytes(buffer,len+1);
-              for (byte i = len+1; i < 30; i++) buffer[i] = '0';     // Complete Block with 0s
-              
-              block = 1;
-              //Serial.println("Authenticating using key A...");
-              status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(mfrc522.uid));
-              if (status != MFRC522::STATUS_OK) 
-              {
-                 Serial.print("PCD_Authenticate() failed: :(");
-                 Serial.println(mfrc522.GetStatusCodeName(status));
-                 return;
-              }
-              
-              // Write block
-      	      status = mfrc522.MIFARE_Write(block, buffer, 16);
-              if (status != MFRC522::STATUS_OK) 
-              {
-      	        Serial.print("MIFARE_Write() failed: :(");
-      	        Serial.println(mfrc522.GetStatusCodeName(status));
-                notePlayer[0].play(NOTE_B2);
-                delay(300);
-                notePlayer[0].stop();
-                delay(100);
-                notePlayer[0].play(NOTE_B2);
-                delay(180);
-                notePlayer[0].stop();
-                return;
-      	      }
-              else// Serial.println("MIFARE_Write() success: :D ");
-      
-              block = 2;
-              //Serial.println("Authenticating using key A...");
-              status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(mfrc522.uid));
-              if (status != MFRC522::STATUS_OK) 
-              {
-                 Serial.print("PCD_Authenticate() failed: :(");
-                 Serial.println(mfrc522.GetStatusCodeName(status));
-                 notePlayer[0].play(NOTE_B2);
-                delay(300);
-                notePlayer[0].stop();
-                delay(100);
-                notePlayer[0].play(NOTE_B2);
-                delay(180);
-                notePlayer[0].stop();
-                 return;
-              }
-              
-              // Write block
-      	status = mfrc522.MIFARE_Write(block, &buffer[16], 16);
-      	if (status != MFRC522::STATUS_OK) 
-      	{
-      	    Serial.print("MIFARE_Write() failed: :(");
-      	    Serial.println(mfrc522.GetStatusCodeName(status));
-            notePlayer[0].play(NOTE_B2);
-            delay(300);
-            notePlayer[0].stop();
-            delay(100);
-            notePlayer[0].play(NOTE_B2);
-            delay(180);
-            notePlayer[0].stop();
-            return;
-      	}
-              else
-              {
-                Serial.println("Chofer grabado");
-                  notePlayer[0].play(NOTE_D4);
-                  delay(200);
-                  notePlayer[0].play(NOTE_B4);
-                  delay(180);
-                  notePlayer[0].stop();
-              }
-              
-       cardIsonPosition= 1; //Visualiza de nuevo el letrero para colocar tarjeta
-       
-       //READ Chofer Block(1);
-       
-       blockAddr= 1;
-       
-        status = mfrc522.MIFARE_Read(blockAddr, buffer, &size);
-          
-       if (status != MFRC522::STATUS_OK) 
-       {
-        Serial.print("MIFARE_Read() failed: ");
-        Serial.println(mfrc522.GetStatusCodeName(status));
-        notePlayer[0].play(NOTE_B2);
-        delay(300);
-        notePlayer[0].stop();
-        delay(100);
-        notePlayer[0].play(NOTE_B2);
-        delay(180);
-        notePlayer[0].stop();
-       }
-        for(i = 0; i < 4; i++)      //Vamos de la posicion 0 a la 3(4 bytes) para leer el ID del chofer GRabado
-        {
-          choferID += (char)buffer[i];
-        }
-        Serial.println("ID Grabado del Chofer:");
-        Serial.println(choferID);
-        
-        choferID = "";
-       }
-        
-        else if(option[0] == 'U')
-        {
-                        eraseMemory();
-                         len = option.length();
-                         option.getBytes(buffer,len+1);
-                        // Ask personal data: ID de Unidad
-                       // Serial.println("Teclea el ID de la unidad y presiona Enter");
-                        //len=Serial.readBytesUntil('\n', (char *) buffer, 20) ; // read first name from serial
-                        for (byte i = len+1; i < 20; i++) buffer[i] = '0';     // pad with spaces
-                        
-                        block = 4;
-                        //Serial.println("Authenticating using key A...");
-                        status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(mfrc522.uid));
-                        if (status != MFRC522::STATUS_OK) {
-                           Serial.print("PCD_Authenticate() failed: ");
-                           Serial.println(mfrc522.GetStatusCodeName(status));
-                           notePlayer[0].play(NOTE_B2);
-                            delay(300);
-                            notePlayer[0].stop();
-                            delay(100);
-                            notePlayer[0].play(NOTE_B2);
-                            delay(180);
-                            notePlayer[0].stop();
-                           return;
-                        }
-                        
-                        // Write block
-                	status = mfrc522.MIFARE_Write(block, buffer, 16);
-                	if (status != MFRC522::STATUS_OK) {
-                	    Serial.print("MIFARE_Write() failed: ");
-                	    Serial.println(mfrc522.GetStatusCodeName(status));
-                      notePlayer[0].play(NOTE_B2);
-                      delay(300);
-                      notePlayer[0].stop();
-                      delay(100);
-                      notePlayer[0].play(NOTE_B2);
-                      delay(180);
-                      notePlayer[0].stop();
-                      return;
-                	}
-                       // else Serial.println("Unidad grabada");
-                
-                        block = 5;
-                        //Serial.println("Authenticating using key A...");
-                        status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(mfrc522.uid));
-                        if (status != MFRC522::STATUS_OK) {
-                           Serial.print("PCD_Authenticate() failed: ");
-                           Serial.println(mfrc522.GetStatusCodeName(status));
-                           notePlayer[0].play(NOTE_B2);
-                          delay(300);
-                          notePlayer[0].stop();
-                          delay(100);
-                          notePlayer[0].play(NOTE_B2);
-                          delay(180);
-                          notePlayer[0].stop();
-                           return;
-                        }
-                        
-                        // Write block
-                	status = mfrc522.MIFARE_Write(block, &buffer[16], 16);
-                	if (status != MFRC522::STATUS_OK) {
-                	    Serial.print("MIFARE_Write() failed: ");
-                	    Serial.println(mfrc522.GetStatusCodeName(status));
-                      notePlayer[0].play(NOTE_B2);
-                      delay(300);
-                      notePlayer[0].stop();
-                      delay(100);
-                      notePlayer[0].play(NOTE_B2);
-                      delay(180);
-                      notePlayer[0].stop();
-                      return;
-                	}
-                        else
-                        {
-                            Serial.println("Unidad grabada");
-                            notePlayer[0].play(NOTE_D4);
-                            delay(200);
-                            notePlayer[0].play(NOTE_B4);
-                            delay(180);
-                            notePlayer[0].stop();
-                        }
-                        
-        cardIsonPosition= 1;  //Visualiza de nuevo el letrero para colocar tarjeta
-        
-               //READ Vehicle Block(4);
-       
-       blockAddr= 4;
-       
-        status = mfrc522.MIFARE_Read(blockAddr, buffer, &size);
-          
-       if (status != MFRC522::STATUS_OK) 
-       {
-        Serial.print("MIFARE_Read() failed: ");
-        Serial.println(mfrc522.GetStatusCodeName(status));
-        notePlayer[0].play(NOTE_B2);
-        delay(300);
-        notePlayer[0].stop();
-        delay(100);
-        notePlayer[0].play(NOTE_B2);
-        delay(180);
-        notePlayer[0].stop();
-       }
-        for(i = 0; i < 4; i++)      //Vamos de la posicion 0 a la 3(4 bytes) para leer el ID del chofer GRabado
-        {
-          unidadID += (char)buffer[i];
-        }
-        Serial.println("ID Grabado de la Unidad:");
-        Serial.println(unidadID);
-        unidadID = "";
-        
-       }
-        
-        else 
-        {
-          Serial.println("Selecciona una opcion valida");
-          option="";
-
-        }
-
-        Serial.println(" ");
-        mfrc522.PICC_HaltA(); // Halt PICC
-        mfrc522.PCD_StopCrypto1();  // Stop encryption on PCD
-       */
 }
 
 
-bool eraseMemory()
-{
-  //Erase memory sequence, this will erase Unidad ID and Chofer ID to be sure none of them is available before writing to memory
- 
- //-------------------Erasing Chofer ID---------------------
 
- 
- for (byte i = 0; i < 30; i++) buffer[i] = '0';     // Complete Block with 0s
-  
-  block = 1;
-              //Serial.println("Authenticating using key A...");
-              status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(mfrc522.uid));
-              if (status != MFRC522::STATUS_OK) 
-              {
-                 Serial.print("PCD_Authenticate() failed: :(");
-                 Serial.println(mfrc522.GetStatusCodeName(status));
-                 notePlayer[0].play(NOTE_B2);
-                  delay(300);
-                  notePlayer[0].stop();
-                  delay(100);
-                  notePlayer[0].play(NOTE_B2);
-                  delay(180);
-                  notePlayer[0].stop();
-                 return 0;
-              }
-              
-              // Write block
-              status = mfrc522.MIFARE_Write(block, buffer, 16);
-              if (status != MFRC522::STATUS_OK) 
-              {
-                Serial.print("MIFARE_Write() failed: :(");
-                Serial.println(mfrc522.GetStatusCodeName(status));
-                notePlayer[0].play(NOTE_B2);
-                delay(300);
-                notePlayer[0].stop();
-                delay(100);
-                notePlayer[0].play(NOTE_B2);
-                delay(180);
-                notePlayer[0].stop();
-                return 0;
-              }
-           //   else Serial.println("MIFARE_Write() success: :D ");
-      
-              block = 2;
-              //Serial.println("Authenticating using key A...");
-              status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(mfrc522.uid));
-              if (status != MFRC522::STATUS_OK) 
-              {
-                 Serial.print("PCD_Authenticate() failed: :(");
-                 Serial.println(mfrc522.GetStatusCodeName(status));
-                 notePlayer[0].play(NOTE_B2);
-                delay(300);
-                notePlayer[0].stop();
-                delay(100);
-                notePlayer[0].play(NOTE_B2);
-                delay(180);
-                notePlayer[0].stop();
-                 return 0;
-              }
-              
-              // Write block
-        status = mfrc522.MIFARE_Write(block, &buffer[16], 16);
-        if (status != MFRC522::STATUS_OK) {
-            Serial.print("MIFARE_Write() failed: :(");
-            Serial.println(mfrc522.GetStatusCodeName(status));
-            notePlayer[0].play(NOTE_B2);
-            delay(300);
-            notePlayer[0].stop();
-            delay(100);
-            notePlayer[0].play(NOTE_B2);
-            delay(180);
-            notePlayer[0].stop();
-            return 0;
-        }
-              else Serial.println("Chofer Borrado");
-              //return 1;
-
-//-------------------Erasing Unidad ID---------------------
-
-                     for (byte i = 0; i < 20; i++) buffer[i] = '0';     // pad with spaces
-                        
-                        block = 4;
-                        //Serial.println("Authenticating using key A...");
-                        status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(mfrc522.uid));
-                        if (status != MFRC522::STATUS_OK) {
-                           Serial.print("PCD_Authenticate() failed: ");
-                           Serial.println(mfrc522.GetStatusCodeName(status));
-                           notePlayer[0].play(NOTE_B2);
-                            delay(300);
-                            notePlayer[0].stop();
-                            delay(100);
-                            notePlayer[0].play(NOTE_B2);
-                            delay(180);
-                            notePlayer[0].stop();
-                           return 0;
-                        }
-                        
-                        // Write block
-                  status = mfrc522.MIFARE_Write(block, buffer, 16);
-                  if (status != MFRC522::STATUS_OK) {
-                      Serial.print("MIFARE_Write() failed: ");
-                      Serial.println(mfrc522.GetStatusCodeName(status));
-                      notePlayer[0].play(NOTE_B2);
-                      delay(300);
-                      notePlayer[0].stop();
-                      delay(100);
-                      notePlayer[0].play(NOTE_B2);
-                      delay(180);
-                      notePlayer[0].stop();
-                      return 0;
-                  }
-                     //   else Serial.println("MIFARE_Write() success: ");
-                
-                        block = 5;
-                        //Serial.println("Authenticating using key A...");
-                        status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(mfrc522.uid));
-                        if (status != MFRC522::STATUS_OK) {
-                           Serial.print("PCD_Authenticate() failed: ");
-                           Serial.println(mfrc522.GetStatusCodeName(status));
-                           notePlayer[0].play(NOTE_B2);
-                            delay(300);
-                            notePlayer[0].stop();
-                            delay(100);
-                            notePlayer[0].play(NOTE_B2);
-                            delay(180);
-                            notePlayer[0].stop();
-                           return 0;
-                        }
-                        
-                        // Write block
-                  status = mfrc522.MIFARE_Write(block, &buffer[16], 16);
-                  if (status != MFRC522::STATUS_OK) {
-                      Serial.print("MIFARE_Write() failed: ");
-                      Serial.println(mfrc522.GetStatusCodeName(status));
-                      notePlayer[0].play(NOTE_B2);
-                      delay(300);
-                      notePlayer[0].stop();
-                      delay(100);
-                      notePlayer[0].play(NOTE_B2);
-                      delay(180);
-                      notePlayer[0].stop();
-                      return 0;
-                  }
-                       else{
-                        Serial.println("Unidad Borrado");
-                        return 1;}
-        
-}
 
 
 void serialRequest()
@@ -531,19 +380,217 @@ void serialRequest()
 
 }
 
-boolean r(int dir, char str[])
+boolean r(int dir)
 {
 
+ // Look for new cards
+    if ( ! mfrc522.PICC_IsNewCardPresent())
+        return 0;
+
+    // Select one of the cards
+    if ( ! mfrc522.PICC_ReadCardSerial())
+        return 0;
+
+    // Show some details of the PICC (that is: the tag/card)
+    Serial.print("Card UID:");
+    dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size);
+    Serial.println();
+    Serial.print("PICC type: ");
+    byte piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
+    Serial.println(mfrc522.PICC_GetTypeName(piccType));
+
+    // Check for compatibility
+    if (    piccType != MFRC522::PICC_TYPE_MIFARE_MINI
+        &&  piccType != MFRC522::PICC_TYPE_MIFARE_1K
+        &&  piccType != MFRC522::PICC_TYPE_MIFARE_4K) {
+        Serial.println("This sample only works with MIFARE Classic cards.");
+        return 0;
+    }
+
+    // In this sample we use the second sector,
+    // that is: sector #1, covering block #4 up to and including block #7
+
+    byte blockAddr      = dir;
 
 
+    byte status;
+    byte buffer[18];
+    byte size = sizeof(buffer);
 
+    // Authenticate using key A
+    Serial.println("Authenticating using key A...");
+    status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
+    if (status != MFRC522::STATUS_OK) {
+        Serial.print("PCD_Authenticate() failed: ");
+        Serial.println(mfrc522.GetStatusCodeName(status));
+        return 0;
+    }
+
+    // Show the whole sector as it currently is
+    Serial.println("Current data in sector:");
+    mfrc522.PICC_DumpMifareClassicSectorToSerial(&(mfrc522.uid), &key, sector);
+    Serial.println();
+
+    // Read data from the block
+    Serial.print("Reading data from block "); Serial.print(blockAddr);
+    Serial.println(" ...");
+    status = mfrc522.MIFARE_Read(blockAddr, buffer, &size);
+    if (status != MFRC522::STATUS_OK) {
+        Serial.print("MIFARE_Read() failed: ");
+        Serial.println(mfrc522.GetStatusCodeName(status));
+    }
+    Serial.print("Data in block "); Serial.print(blockAddr); Serial.println(":");
+    dump_byte_array(buffer, 16); Serial.println();
+    Serial.println();
+
+    // Halt PICC
+    mfrc522.PICC_HaltA();
+    // Stop encryption on PCD
+    mfrc522.PCD_StopCrypto1();
+       
+    Serial.println("R_OK");
+    return 1; 
 }
 
 boolean w(int dir, char str[])
 {
 
+ // Look for new cards
+    if ( ! mfrc522.PICC_IsNewCardPresent())
+        return 0;
 
+    // Select one of the cards
+    if ( ! mfrc522.PICC_ReadCardSerial())
+        return 0;
+
+    // Show some details of the PICC (that is: the tag/card)
+    Serial.print("Card UID:");
+    dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size);
+    Serial.println();
+    Serial.print("PICC type: ");
+    byte piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
+    Serial.println(mfrc522.PICC_GetTypeName(piccType));
+
+    // Check for compatibility
+    if (    piccType != MFRC522::PICC_TYPE_MIFARE_MINI
+        &&  piccType != MFRC522::PICC_TYPE_MIFARE_1K
+        &&  piccType != MFRC522::PICC_TYPE_MIFARE_4K) {
+        Serial.println("This sample only works with MIFARE Classic cards.");
+        return 0;
+    }
+
+    // In this sample we use the second sector,
+    // that is: sector #1, covering block #4 up to and including block #7
+
+    byte blockAddr      = dir;
+    Serial.print("Block ADDRESS: ");
+    Serial.println(blockAddr);
+
+    byte status;
+    byte buffer[18];
+    byte size = sizeof(buffer);
+
+    // Authenticate using key A
+    Serial.println("Authenticating using key A...");
+    status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
+    if (status != MFRC522::STATUS_OK) {
+        Serial.print("PCD_Authenticate() failed: ");
+        Serial.println(mfrc522.GetStatusCodeName(status));
+        return 0;
+    }
+
+    
+   // Authenticate using key B
+    Serial.println("Authenticating again using key B...");
+    status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_B, trailerBlock, &key, &(mfrc522.uid));
+    if (status != MFRC522::STATUS_OK) {
+        Serial.print("PCD_Authenticate() failed: ");
+        Serial.println(mfrc522.GetStatusCodeName(status));
+        return 0;
+    }
+
+    // Write data to the block
+  //
+   for(i=0;i< strlen(str);i++)
+    {
+      buildBlock(i,str[i]);
+      Serial.println(str[i]);
+    }
+
+    Serial.print("Writing data into block "); Serial.print(blockAddr);
+    Serial.println(" ...");
+    dump_byte_array(dataBlock, 16); Serial.println();
+    status = mfrc522.MIFARE_Write(blockAddr, dataBlock, 16);
+    if (status != MFRC522::STATUS_OK) {
+        Serial.print("MIFARE_Write() failed: ");
+        Serial.println(mfrc522.GetStatusCodeName(status));
+    }
+    Serial.println();
+
+    // Read data from the block (again, should now be what we have written)
+    Serial.print("Reading data from block "); Serial.print(blockAddr);
+    Serial.println(" ...");
+    status = mfrc522.MIFARE_Read(blockAddr, buffer, &size);
+    if (status != MFRC522::STATUS_OK) {
+        Serial.print("MIFARE_Read() failed: ");
+        Serial.println(mfrc522.GetStatusCodeName(status));
+    }
+    Serial.print("Data in block "); Serial.print(blockAddr); Serial.println(":");
+    dump_byte_array(buffer, 16); Serial.println();
+        
+    // Check that data in block is what we have written
+    // by counting the number of bytes that are equal
+    Serial.println("Checking result...");
+    byte count = 0;
+    for (byte i = 0; i < 16; i++) {
+        // Compare buffer (= what we've read) with dataBlock (= what we've written)
+        if (buffer[i] == dataBlock[i])
+            count++;
+    }
+    Serial.print("Number of bytes that match = "); Serial.println(count);
+    if (count == 16) {
+        Serial.println("Success :-)");
+    } else {
+        Serial.println("Failure, no match :-(");
+        Serial.println("  perhaps the write didn't work properly...");
+    }
+    Serial.println();
+        
+    // Dump the sector data
+    Serial.println("Current data in sector:");
+    mfrc522.PICC_DumpMifareClassicSectorToSerial(&(mfrc522.uid), &key, sector);
+    Serial.println();
+
+    // Halt PICC
+    mfrc522.PICC_HaltA();
+    // Stop encryption on PCD
+    mfrc522.PCD_StopCrypto1();
+
+    Serial.println("W_OK");
+    return 1; 
   
+}
+
+void buildBlock(int byteNo, char data)
+{
+  if(byteNo < 16 && byteNo >= 0)
+  {
+    dataBlock[byteNo] = data;
+    Serial.write(dataBlock[byteNo]);
+  }
+  //dump_byte_array(dataBlock,16);
+  
+}
+
+
+/**
+ * Helper routine to dump a byte array as hex values to Serial.
+ */
+void dump_byte_array(byte *buffer, byte bufferSize) {
+    for (byte i = 0; i < bufferSize; i++) {
+        Serial.print(buffer[i] < 0x10 ? " 0" : " ");
+        Serial.print(buffer[i], HEX);
+    }
 }
 
 
