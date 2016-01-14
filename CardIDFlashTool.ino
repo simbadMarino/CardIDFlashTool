@@ -26,9 +26,10 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);        // Create MFRC522 instance.
 byte sector;
 byte trailerBlock;
 int BlockNumber;
+int SectorToClear;
 int cardIsonPosition= 1;
 char data_to_write[16];
-String SWver = "v2.9 08/12/15";
+String SWver = "v3.0 13/01/16";
 String strCmd = "";
 String diagCmd = "";
 //byte buffer[34];  
@@ -83,12 +84,90 @@ void loop() {
 
   if (stringComplete) {
 
-    
+//############ READ SW VERSION ########################################################################
     if(diagCmd =="swver\n")
     {
      Serial.println(SWver);
       
     }
+
+
+   if(diagCmd =="clearAll\n")
+    {
+      
+      for(int j = 1; j < 16; j++)
+      {
+        trailerBlock =j+3*(j+1);
+        sector = j;
+        clearSector(j);
+      }
+      
+    }
+
+
+
+//#############CLEAR BY SECTOR #############################################################################
+
+    if(diagCmd[0] == 'c' && diagCmd[1]== '(')  //We received a read Block Command
+    {
+      i=2;                                     //Start in Block number byte(2)
+      mfrc522.PCD_Init(); // Init MFRC522 card
+      //Serial.println(F("Read command"));          //Debug
+      while(diagCmd[i] != ')' )                 //Read Block number until ')' is detected
+      {
+        strCmd = strCmd + diagCmd[i];
+        i++;
+        
+
+        if(i > 4)
+        {
+         // Serial.println(i);
+          Serial.println(F("Error 501"));          //Error 501 means parenthesis is not closed in function or numer exceeds the 2 digits limit
+          break;
+          //Serial.println(diagCmd);
+        }
+      }
+      
+      //Serial.println(strCmd);
+      SectorToClear = strCmd.toInt();               //Converting Block number string to Int
+
+      if(SectorToClear < 16)
+      { 
+          sector = SectorToClear;
+          trailerBlock =sector+3*(sector+1);
+          clearSector(SectorToClear);                   //Call clearSector function to clear the specified SEctor in parameter
+        
+      }
+      else Serial.println(F("Error 502"));              //Error 502 means SEctor to clear is greater than maximum number of sectors in RFID tag
+
+      strCmd = "";
+      i = 0;  //Resetting counter
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     if(diagCmd[0] == 'r' && diagCmd[1]== '(')  //We received a read Block Command
     {
@@ -314,7 +393,7 @@ void loop() {
       trailerBlock =sector+3*(sector+1);
       //Serial.print("TRailer Block: ");
       //Serial.println(trailerBlock);
-      if(BlockNumber == trailerBlock)
+      if(BlockNumber == trailerBlock || BlockNumber == 0)
       {
         Serial.println(F("TR_NA"));
         play_wrong();
@@ -564,7 +643,7 @@ boolean w(int dir, char str[])
    // dump_byte_array(dataBlock, 16); Serial.println();
     status = mfrc522.MIFARE_Write(blockAddr, dataBlock, 16);
     if (status != MFRC522::STATUS_OK) {
-        Serial.print(F("MIFARE_Write() failed: "));
+      //  Serial.print(F("MIFARE_Write() failed: "));
         play_wrong();
         Serial.println(F("W_NOK"));
         Serial.println(mfrc522.GetStatusCodeName(status));
@@ -579,11 +658,11 @@ boolean w(int dir, char str[])
     if (status != MFRC522::STATUS_OK) {
       play_wrong();
       Serial.println(F("W_NOK"));
-        //Serial.print(F("MIFARE_Read() failed: "));
+      //  Serial.print(F("MIFARE_Read() failed: "));
         //Serial.println(mfrc522.GetStatusCodeName(status));
         return 0;
     }
-    //Serial.print(F("Data in block ")); Serial.print(blockAddr); Serial.println(":");
+   // Serial.print(F("Data in block ")); Serial.print(blockAddr); Serial.println(":");
    // dump_byte_array(buffer, 16); Serial.println();
         
     // Check that data in block is what we have written
@@ -602,7 +681,7 @@ boolean w(int dir, char str[])
     } else {
       play_wrong();
       Serial.println(F("W_NOK"));
-       // Serial.println("Failure, no match :-(");
+     //   Serial.println("Failure, no match :-(");
        return 0;
         //Serial.println("  perhaps the write didn't work properly...");
     }
@@ -649,6 +728,29 @@ void erase_dataBlock()
   
 }
 
+boolean clearSector(int sectorToClear)
+{
+  int i;
+  int sectorSize = 4;                                           //Sector Size in RFID tags
+  int manufacturingBlock = 0;                                   //Manufacturin block to be Written protected
+  int currentBlock = sectorToClear * sectorSize;
+  int maxBlock = sectorToClear*sectorSize + sectorSize;
+  for(i = currentBlock; i < maxBlock; i++)
+  {
+    if(i != manufacturingBlock && i != trailerBlock)
+    {
+      mfrc522.PCD_Init();                                         // Init MFRC522 chip again per each write attemp  
+      //Serial.print("Block to clear: ");
+      //Serial.println(i);
+      w(i,"                ");                                    //Writting NULLS into Block "i"
+
+    }
+  }
+  
+
+
+  
+}
 
 /**
  * Helper routine to dump a byte array as hex values to Serial.
@@ -662,23 +764,23 @@ void dump_byte_array(byte *buffer, byte bufferSize) {
 
 void play_wrong()
 {
-  notePlayer[0].begin(6);
+/*  notePlayer[0].begin(6);
   notePlayer[0].play(NOTE_B2);
   delay(300);
   notePlayer[0].stop();
   delay(100);
   notePlayer[0].play(NOTE_B2);
   delay(180);
-  notePlayer[0].stop();
+  notePlayer[0].stop();*/
 }
 
 void play_OK()
 {
-  notePlayer[0].begin(6);
+    /*notePlayer[0].begin(6);
     notePlayer[0].play(NOTE_D4);
     delay(200);
     notePlayer[0].play(NOTE_B4);
     delay(180);
-    notePlayer[0].stop();
+    notePlayer[0].stop();*/
 }
 
