@@ -10,6 +10,7 @@
 #include <Tone.h>
 //#include <SD.h>
 //include<stdlib.h>
+// #include <Wire.h>
 
 #define SS_PIN 10    //Arduino Uno
 //#define SS_PIN 7    //Arduino MEga
@@ -23,13 +24,15 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);        // Create MFRC522 instance.
         0x00, 0x00, 0x00, 0x00, //  0, 0, 0, 0,
         0x00, 0x00, 0x00, 0x00  //  0, 0, 0, 0
     };
+int succesCounter=0;
+boolean flagClearSector;
 byte sector;
 byte trailerBlock;
 int BlockNumber;
 int SectorToClear;
 int cardIsonPosition= 1;
 char data_to_write[16];
-String SWver = "v3.0 13/01/16";
+String SWver = "v3.1 19/01/16";
 String strCmd = "";
 String diagCmd = "";
 //byte buffer[34];  
@@ -91,16 +94,36 @@ void loop() {
       
     }
 
+  if(diagCmd =="active?\n")
+    {
+     Serial.println("Alive");
+      
+    }
 
    if(diagCmd =="clearAll\n")
     {
       
-      for(int j = 1; j < 16; j++)
+      for(int j = 0; j < 16; j++)
       {
         trailerBlock =j+3*(j+1);
         sector = j;
-        clearSector(j);
+        //Serial.println(j);
+        clearSector(j);    //IF returned value is 1 then send positive feedback via SErial port,
+      
+       // Serial.println(j);
       }
+          if(succesCounter == 47)    //IF returned value is 1 then send positive feedback via SErial port,
+        {
+          Serial.println(F("C_OK"));
+          play_OK();
+        }
+        else
+        {
+          Serial.println(F("C_NOK"));
+          play_wrong();
+        }
+      succesCounter = 0;    //Clear variable for a second clearALL command
+  
       
     }
 
@@ -129,16 +152,94 @@ void loop() {
       }
       
       //Serial.println(strCmd);
-      SectorToClear = strCmd.toInt();               //Converting Block number string to Int
+      BlockNumber = strCmd.toInt();               //Converting Block number string to Int
 
-      if(SectorToClear < 16)
-      { 
-          sector = SectorToClear;
-          trailerBlock =sector+3*(sector+1);
-          clearSector(SectorToClear);                   //Call clearSector function to clear the specified SEctor in parameter
-        
+  if(BlockNumber < 4)
+      {
+        sector = 0;
       }
-      else Serial.println(F("Error 502"));              //Error 502 means SEctor to clear is greater than maximum number of sectors in RFID tag
+
+      else if(BlockNumber < 8)
+      {
+        sector = 1;
+      }
+
+      else if(BlockNumber < 12)
+      {
+        sector = 2;
+      }
+
+      else if(BlockNumber < 16)
+      {
+        sector = 3;
+      }
+
+      else if(BlockNumber < 20)
+      {
+        sector = 4;
+      }
+
+      else if(BlockNumber < 24)
+      {
+        sector = 5;
+      }
+
+      else if(BlockNumber < 28)
+      {
+        sector = 6;
+      }
+
+      else if(BlockNumber < 32)
+      {
+        sector = 7;
+      }
+
+      else if(BlockNumber < 36)
+      {
+        sector = 8;
+      }
+
+      else if(BlockNumber < 40)
+      {
+        sector = 9;
+      }
+
+      else if(BlockNumber < 44)
+      {
+        sector = 10;
+      }
+
+      else if(BlockNumber < 48)
+      {
+        sector = 11;
+      }
+
+      else if(BlockNumber < 52)
+      {
+        sector = 12;
+      }
+
+      else if(BlockNumber < 56)
+      {
+        sector = 13;
+      }
+
+      else if(BlockNumber < 60)
+      {
+        sector = 14;
+      }
+
+      else if(BlockNumber < 64)
+      {
+        sector = 15;
+      }
+      
+          
+          trailerBlock =sector+3*(sector+1);
+          clearBlock(BlockNumber);                   //Call clearSector function to clear the specified SEctor in parameter
+        
+      
+     // else Serial.println(F("Error 502"));              //Error 502 means SEctor to clear is greater than maximum number of sectors in RFID tag
 
       strCmd = "";
       i = 0;  //Resetting counter
@@ -424,7 +525,7 @@ void loop() {
         
         strCmd.toCharArray(data_to_write,16);
         //Serial.println(data_to_write);
-        w(BlockNumber,data_to_write);
+        w(BlockNumber,data_to_write,0);
       }
 
        strCmd = "";
@@ -561,23 +662,30 @@ boolean r(int dir)
     return 1; 
 }
 
-boolean w(int dir, char str[])
+boolean w(int dir, char str[],boolean flagClear)
 {
   
 
  // Look for new cards
     if ( ! mfrc522.PICC_IsNewCardPresent())
     {
+      if(!flagClear)
+      {
         play_wrong();
         Serial.println(F("W_NOK"));
+      }
         return 0;
     }
     // Select one of the cards
     if ( ! mfrc522.PICC_ReadCardSerial())
     {
+       if(!flagClear)
+      {
         play_wrong();
         Serial.println(F("W_NOK"));
+      }
         return 0;
+        
     }
 
     // Show some details of the PICC (that is: the tag/card)
@@ -611,10 +719,13 @@ boolean w(int dir, char str[])
     //Serial.println(F("Authenticating using key A..."));
     status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
     if (status != MFRC522::STATUS_OK) {
-        Serial.print(F("PCD_Authenticate() failed: "));
-        Serial.println(mfrc522.GetStatusCodeName(status));
+     //   Serial.print(F("PCD_Authenticate() failed: "));
+     //   Serial.println(mfrc522.GetStatusCodeName(status));
+      if(!flagClear)
+      {
         play_wrong();
         Serial.println(F("W_NOK"));
+      }
         return 0;
     }
 
@@ -623,10 +734,13 @@ boolean w(int dir, char str[])
     //Serial.println(F("Authenticating again using key B..."));
     status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_B, trailerBlock, &key, &(mfrc522.uid));
     if (status != MFRC522::STATUS_OK) {
-        Serial.print(F("PCD_Authenticate() failed: "));
-        Serial.println(mfrc522.GetStatusCodeName(status));
+       // Serial.print(F("PCD_Authenticate() failed: "));
+       // Serial.println(mfrc522.GetStatusCodeName(status));
+        if(!flagClear)
+      {
         play_wrong();
         Serial.println(F("W_NOK"));
+      }
         return 0;
     }
 
@@ -644,9 +758,12 @@ boolean w(int dir, char str[])
     status = mfrc522.MIFARE_Write(blockAddr, dataBlock, 16);
     if (status != MFRC522::STATUS_OK) {
       //  Serial.print(F("MIFARE_Write() failed: "));
+       if(!flagClear)
+      {
         play_wrong();
         Serial.println(F("W_NOK"));
-        Serial.println(mfrc522.GetStatusCodeName(status));
+      }
+        //Serial.println(mfrc522.GetStatusCodeName(status));
     return 0;
     }
     //Serial.println();
@@ -656,8 +773,11 @@ boolean w(int dir, char str[])
     //Serial.println(" ...");
     status = mfrc522.MIFARE_Read(blockAddr, buffer, &size);
     if (status != MFRC522::STATUS_OK) {
+       if(!flagClear)
+      {
       play_wrong();
       Serial.println(F("W_NOK"));
+      }
       //  Serial.print(F("MIFARE_Read() failed: "));
         //Serial.println(mfrc522.GetStatusCodeName(status));
         return 0;
@@ -677,10 +797,17 @@ boolean w(int dir, char str[])
     //Serial.print(F("Number of bytes that match = ")); Serial.println(count);
     if (count == 16) {
       //  Serial.println(F("Success :-)"));
+       if(!flagClear)
+      {
         play_OK();
+        Serial.println(F("W_OK"));
+      }
     } else {
+       if(!flagClear)
+      {
       play_wrong();
       Serial.println(F("W_NOK"));
+      }
      //   Serial.println("Failure, no match :-(");
        return 0;
         //Serial.println("  perhaps the write didn't work properly...");
@@ -696,8 +823,8 @@ boolean w(int dir, char str[])
     mfrc522.PICC_HaltA();
     // Stop encryption on PCD
     mfrc522.PCD_StopCrypto1();
-
-    Serial.println(F("W_OK"));
+    
+   
     
     erase_dataBlock();
     return 1; 
@@ -735,20 +862,75 @@ boolean clearSector(int sectorToClear)
   int manufacturingBlock = 0;                                   //Manufacturin block to be Written protected
   int currentBlock = sectorToClear * sectorSize;
   int maxBlock = sectorToClear*sectorSize + sectorSize;
+  boolean clearFeedback;
+
   for(i = currentBlock; i < maxBlock; i++)
   {
     if(i != manufacturingBlock && i != trailerBlock)
     {
       mfrc522.PCD_Init();                                         // Init MFRC522 chip again per each write attemp  
-      //Serial.print("Block to clear: ");
-      //Serial.println(i);
-      w(i,"                ");                                    //Writting NULLS into Block "i"
-
+      Serial.print("Clearing BLock: ");
+      Serial.print(i);
+      clearFeedback = w(i,"                ",1);                                    //Writting NULLS into Block "i"
+      if(clearFeedback == 1)
+      {
+        Serial.println(" ...OK");
+      }
+      else
+      {
+        Serial.println(" ...NOK");
+      }
+      succesCounter = succesCounter + clearFeedback;
     }
+    
+     
   }
+  return clearFeedback;
   
 
+  
+}
 
+boolean clearBlock(int BlockToClear)
+{
+  int i;
+  int sectorSize = 4;                                           //Sector Size in RFID tags
+  int manufacturingBlock = 0;                                   //Manufacturin block to be Written protected
+//  int currentBlock = sectorToClear * sectorSize;
+  //int maxBlock = sectorToClear*sectorSize + sectorSize;
+   boolean clearFeedback;
+  
+    if(BlockToClear != manufacturingBlock && BlockToClear != trailerBlock)
+    {
+      mfrc522.PCD_Init();                                         // Init MFRC522 chip again per each write attemp  
+      //Serial.print("Block to clear: ");
+      //Serial.println(i);
+      clearFeedback = w(BlockToClear,"                ",1);                                    //Writting NULLS into Block "i"
+
+    
+    }
+      else
+    {
+      play_wrong();
+      Serial.println(F("C_NOK"));
+      return 0;
+    } 
+   
+    //Serial.println("Return from write: ");
+    //Serial.println(clearFeedback);
+    if(clearFeedback)
+    {
+      play_OK();
+      Serial.println(F("C_OK"));
+    }
+    else
+    {
+      play_wrong();
+      Serial.println(F("C_NOK"));
+      return 0;
+    }
+    
+     return clearFeedback;
   
 }
 
@@ -776,7 +958,7 @@ void play_wrong()
 
 void play_OK()
 {
-    /*notePlayer[0].begin(6);
+   /* notePlayer[0].begin(6);
     notePlayer[0].play(NOTE_D4);
     delay(200);
     notePlayer[0].play(NOTE_B4);
