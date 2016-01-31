@@ -32,7 +32,7 @@ int BlockNumber;
 int SectorToClear;
 int cardIsonPosition= 1;
 char data_to_write[16];
-String SWver = "v3.1 19/01/16";
+String SWver = "v3.5 30/01/16";
 String strCmd = "";
 String diagCmd = "";
 //byte buffer[34];  
@@ -77,7 +77,7 @@ void setup() {
   notePlayer[0].play(NOTE_B2);
   delay(180);
   notePlayer[0].stop();*/
-
+    notePlayer[0].begin(6);
 
 }
 
@@ -946,23 +946,25 @@ void dump_byte_array(byte *buffer, byte bufferSize) {
 
 void play_wrong()
 {
-/*  notePlayer[0].begin(6);
+
   notePlayer[0].play(NOTE_B2);
   delay(300);
   notePlayer[0].stop();
   delay(100);
   notePlayer[0].play(NOTE_B2);
   delay(180);
-  notePlayer[0].stop();*/
+  notePlayer[0].stop();
+  delay(100);
 }
 
 void play_OK()
 {
-   /* notePlayer[0].begin(6);
+
     notePlayer[0].play(NOTE_D4);
     delay(200);
     notePlayer[0].play(NOTE_B4);
     delay(180);
-    notePlayer[0].stop();*/
+    notePlayer[0].stop();
+    delay(100);
 }
 
